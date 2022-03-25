@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <iostream>
 #include <optional>
+#include <stack>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -54,6 +55,7 @@ protected:
 
     Id entryPoint;
     std::vector<Procedure> procedures;
+    std::vector<Value> variables;
     std::vector<std::string> procedureNames;
     std::vector<std::string> variableNames;
     std::unordered_map<std::string, Id> procedureIds;
@@ -63,6 +65,8 @@ protected:
     std::optional<Id> getProcedureId(const std::string &name);
     std::optional<Number> toNumber(const std::string &string);
     void strip(std::string &string);
+
+    void printValue(Value valueToPrint, std::ostream &out);
 
 public:
     Program(std::istream &in);

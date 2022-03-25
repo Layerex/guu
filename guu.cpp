@@ -176,8 +176,61 @@ Program::Program(std::istream &in)
         procedure.instructions.shrink_to_fit();
     }
     procedures.shrink_to_fit();
+    variables.resize(variableNames.size());
     procedureNames.shrink_to_fit();
     variableNames.shrink_to_fit();
 #undef ASSERT_OPTIONAL
+}
+
+void Program::printValue(Value valueToPrint, std::ostream &out)
+{
+    switch (valueToPrint.type()) {
+    case ValueType::String:
+        out << std::get<std::string>(valueToPrint.value) << '\n';
+        break;
+    case ValueType::Number:
+        out << std::get<Number>(valueToPrint.value) << '\n';
+        break;
+    case ValueType::Variable:
+        printValue(variables[std::get<Id>(valueToPrint.value)], out);
+        break;
+    }
+}
+
+void Program::run(std::ostream &out)
+{
+    std::stack<ProcedureFrame> procedureStack;
+    procedureStack.emplace(entryPoint);
+    for (;;) {
+        ProcedureFrame &currentProcedure = procedureStack.top();
+        while (procedures[currentProcedure.id].instructions.size()
+               == currentProcedure.instruction) {
+            procedureStack.pop();
+            if (procedureStack.empty()) {
+                return;
+            } else {
+                currentProcedure = procedureStack.top();
+            }
+        }
+#define currentInstruction                                                                         \
+    procedures[currentProcedure.id].instructions[currentProcedure.instruction]
+        switch (currentInstruction.type) {
+        case InstructionType::Set:
+            std::cerr << "set" << '\n';
+            variables[currentInstruction.id] = currentInstruction.arg;
+            break;
+        case InstructionType::Call:
+            std::cerr << "call" << '\n';
+            procedureStack.emplace(currentInstruction.id);
+            break;
+        case InstructionType::Print:
+            std::cerr << "print" << '\n';
+            printValue(variables[currentInstruction.id], out);
+            break;
+        }
+
+        currentProcedure.instruction++;
+#undef currentInstruction
+    }
 }
 }
