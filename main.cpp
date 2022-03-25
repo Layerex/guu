@@ -1,8 +1,6 @@
 #include "guu.h"
 
 // TODO: catch compilation errors
-// TODO: using variables and calling function before declaration
-// TODO: use Number by default in std::variant
 
 int main(int argc, char *argv[])
 {

@@ -20,24 +20,47 @@ ValueType Value::type()
     return static_cast<ValueType>(value.index());
 }
 
-std::optional<Id> Program::getVariableId(const std::string &name)
+Id Program::getVariableId(const std::string &name, bool definition = false)
 {
-    std::optional<Id> optional;
+    Id id;
     try {
-        optional = variableIds.at(name);
+        id = variableIds.at(name);
+        if (definition) {
+            undefinedVariables.erase(name);
+        }
     } catch (const std::out_of_range &e) {
+        variableNames.push_back(name);
+        id = variables.size();
+        variables.emplace_back();
+        variableIds[name] = id;
+        if (!definition) {
+            undefinedVariables.insert(name);
+        }
     }
-    return optional;
+    return id;
 }
 
-std::optional<Id> Program::getProcedureId(const std::string &name)
+Id Program::getProcedureId(const std::string &name, bool definition = false)
 {
-    std::optional<Id> optional;
+    Id id;
     try {
-        optional = procedureIds.at(name);
+        id = procedureIds.at(name);
+        if (definition) {
+            undefinedProcedures.erase(name);
+        }
     } catch (const std::out_of_range &e) {
+        procedureNames.push_back(name);
+        id = procedures.size();
+        procedures.emplace_back();
+        procedureIds[name] = id;
+        if (name == entryProcedureName) {
+            entryPoint = id;
+        }
+        if (!definition) {
+            undefinedProcedures.insert(name);
+        }
     }
-    return optional;
+    return id;
 }
 
 std::optional<Number> Program::toNumber(const std::string &string)
@@ -83,13 +106,6 @@ Program::Program(std::istream &in)
         assert(predicate, getErrorMessage(message));
     };
 
-#define ASSERT_OPTIONAL(error, ...)                                                                \
-    [&]() {                                                                                        \
-        auto $result = __VA_ARGS__;                                                                \
-        assertSyntaxError($result.has_value(), error);                                             \
-        return $result.value();                                                                    \
-    }()
-
     // Helpers
     std::string procedureName = "";
     auto isProcedureSet = [&procedureName]() { return !procedureName.empty(); };
@@ -103,13 +119,14 @@ Program::Program(std::istream &in)
             if (number.has_value()) {
                 value.value = number.value();
             } else {
-                value.value = ASSERT_OPTIONAL("set: value of unknown type: `" + stringValue + "'",
-                                              getVariableId(stringValue));
+                // TODO: check if stringValue can be variable name
+                value.value = getVariableId(stringValue);
             }
         }
         return value;
     };
 
+    size_t currentProcedureId;
     for (; std::getline(in, line); ++line_number) {
         std::istringstream is(line);
         std::string instruction;
@@ -117,13 +134,8 @@ Program::Program(std::istream &in)
             if (instruction == "sub") {
                 assertSyntaxError(static_cast<bool>(is >> procedureName),
                                   "instruction `sub' requires an argument: procedure name.");
-                procedureNames.push_back(procedureName);
-                Id procedureId = procedures.size();
-                procedures.emplace_back();
-                if (procedureName == entryProcedureName) {
-                    entryPoint = procedureId;
-                }
-                procedureIds[procedureName] = procedureId;
+
+                currentProcedureId = getProcedureId(procedureName, true);
             } else if (instruction == "set") {
                 assertSyntaxError(isProcedureSet(),
                                   "instruction `set' doesn't belong to any procedure");
@@ -135,11 +147,9 @@ Program::Program(std::istream &in)
                 assertSyntaxError(
                         !variableValue.empty(),
                         "instruction `set' requires two arguments: variable name and value.");
-                Id variableId = variableNames.size();
-                variableNames.push_back(variableName);
-                variableIds[variableName] = variableId;
-                procedures.back().instructions.emplace_back(InstructionType::Set, variableId,
-                                                            makeValue(variableValue));
+                Id variableId = getVariableId(variableName, true);
+                procedures[currentProcedureId].instructions.emplace_back(
+                        InstructionType::Set, variableId, makeValue(variableValue));
             } else if (instruction == "print") {
                 assertSyntaxError(isProcedureSet(),
                                   "instruction `print' doesn't belong to any procedure");
@@ -147,10 +157,9 @@ Program::Program(std::istream &in)
                 std::string variableName;
                 assertSyntaxError(static_cast<bool>(is >> variableName),
                                   "instruction `print' requires an argument: variable name.");
-                procedures.back().instructions.emplace_back(
-                        InstructionType::Print,
-                        ASSERT_OPTIONAL("undefined variable: `" + variableName + "'",
-                                        getVariableId(variableName)));
+                Id variableId = getVariableId(variableName);
+                procedures[currentProcedureId].instructions.emplace_back(InstructionType::Print,
+                                                                         variableId);
             } else if (instruction == "call") {
                 assertSyntaxError(isProcedureSet(),
                                   "instruction `call' doesn't belong to any procedure");
@@ -158,19 +167,44 @@ Program::Program(std::istream &in)
                 std::string procedureName;
                 assertSyntaxError(static_cast<bool>(is >> procedureName),
                                   "instruction `call' requires an argument: procedure name.");
-                is >> procedureName;
-                procedures.back().instructions.emplace_back(
-                        InstructionType::Call,
-                        ASSERT_OPTIONAL("undefined procedure: `" + procedureName + "'",
-                                        getProcedureId(procedureName)));
+                Id procedureId = getProcedureId(procedureName);
+                procedures[currentProcedureId].instructions.emplace_back(InstructionType::Call,
+                                                                         procedureId);
             } else {
                 throwSyntaxError("unknown instruction: `" + instruction + "'");
             }
         }
     }
-    entryPoint = ASSERT_OPTIONAL("No entry procedure (procedure with name `" + entryProcedureName
-                                         + "') found'",
-                                 getProcedureId(entryProcedureName));
+
+    try {
+        entryPoint = procedureIds.at(entryProcedureName);
+    } catch (const std::out_of_range) {
+        throwSyntaxError("No entry procedure (procedure with name `" + entryProcedureName
+                         + "') defined");
+    }
+
+    if (!undefinedProcedures.empty()) {
+        std::string undefinedProceduresError = "Following procedures are used but not defined: ";
+        for (auto procedure : undefinedProcedures) {
+            undefinedProceduresError += "`";
+            undefinedProceduresError += procedure;
+            undefinedProceduresError += "' ";
+        }
+        undefinedProceduresError.back() = '.';
+        throwSyntaxError(undefinedProceduresError);
+    }
+
+    if (!undefinedVariables.empty()) {
+        std::string undefinedVariablesError = "Following variables are used but not defined:";
+        for (auto variable : undefinedVariables) {
+            undefinedVariablesError += "`";
+            undefinedVariablesError += variable;
+            undefinedVariablesError += "' ";
+        }
+        undefinedVariablesError.back() = '.';
+        throwSyntaxError(undefinedVariablesError);
+    }
+
     // TODO: when nodebug mode: remove symbols
     for (auto procedure : procedures) {
         procedure.instructions.shrink_to_fit();
@@ -179,17 +213,16 @@ Program::Program(std::istream &in)
     variables.resize(variableNames.size());
     procedureNames.shrink_to_fit();
     variableNames.shrink_to_fit();
-#undef ASSERT_OPTIONAL
 }
 
 void Program::printValue(Value valueToPrint, std::ostream &out)
 {
     switch (valueToPrint.type()) {
-    case ValueType::String:
-        out << std::get<std::string>(valueToPrint.value) << '\n';
-        break;
     case ValueType::Number:
         out << std::get<Number>(valueToPrint.value) << '\n';
+        break;
+    case ValueType::String:
+        out << std::get<std::string>(valueToPrint.value) << '\n';
         break;
     case ValueType::Variable:
         printValue(variables[std::get<Id>(valueToPrint.value)], out);
@@ -199,25 +232,32 @@ void Program::printValue(Value valueToPrint, std::ostream &out)
 
 void Program::run(std::ostream &out)
 {
+    std::cerr << "run" << std::endl;
     std::stack<ProcedureFrame> procedureStack;
     procedureStack.emplace(entryPoint);
     for (;;) {
-        ProcedureFrame &currentProcedure = procedureStack.top();
-        while (procedures[currentProcedure.id].instructions.size()
-               == currentProcedure.instruction) {
+        ProcedureFrame *currentProcedure = &procedureStack.top();
+        while (procedures[currentProcedure->id].instructions.size()
+               == currentProcedure->instruction) {
             procedureStack.pop();
+            std::cerr << "return" << std::endl;
             if (procedureStack.empty()) {
-                return;
+                goto end;
             } else {
-                currentProcedure = procedureStack.top();
+                currentProcedure = &procedureStack.top();
             }
         }
 #define currentInstruction                                                                         \
-    procedures[currentProcedure.id].instructions[currentProcedure.instruction]
+    procedures[currentProcedure->id].instructions[currentProcedure->instruction]
         switch (currentInstruction.type) {
         case InstructionType::Set:
-            std::cerr << "set" << '\n';
-            variables[currentInstruction.id] = currentInstruction.arg;
+            std::cerr << "set" << std::endl;
+            if (static_cast<Value>(currentInstruction.arg).type() == ValueType::Variable) {
+                variables[currentInstruction.id] =
+                        variables[std::get<Id>(currentInstruction.arg.value)];
+            } else {
+                variables[currentInstruction.id] = currentInstruction.arg;
+            }
             break;
         case InstructionType::Call:
             std::cerr << "call" << '\n';
@@ -228,9 +268,10 @@ void Program::run(std::ostream &out)
             printValue(variables[currentInstruction.id], out);
             break;
         }
-
-        currentProcedure.instruction++;
+        ++currentProcedure->instruction;
 #undef currentInstruction
     }
+end:
+    std::cerr << "end" << std::endl;
 }
 }

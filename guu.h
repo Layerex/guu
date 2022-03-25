@@ -1,10 +1,11 @@
 #include <cstddef>
 #include <iostream>
 #include <optional>
-#include <stack>
 #include <sstream>
+#include <stack>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -18,10 +19,10 @@ void assert(bool predicate, T message);
 typedef size_t Id;
 typedef long long Number; // TODO: long numbers
 
-enum class ValueType { String, Number, Variable };
+enum class ValueType { Number, String, Variable };
 struct Value
 {
-    std::variant<std::string, Number, Id> value;
+    std::variant<Number, std::string, Id> value;
     ValueType type();
 };
 
@@ -45,7 +46,7 @@ struct ProcedureFrame
     Id id;
     Id instruction = 0;
     ProcedureFrame() = delete;
-    ProcedureFrame(Id id): id(id) {}
+    ProcedureFrame(Id id) : id(id) { }
 };
 
 class Program
@@ -60,9 +61,11 @@ protected:
     std::vector<std::string> variableNames;
     std::unordered_map<std::string, Id> procedureIds;
     std::unordered_map<std::string, Id> variableIds;
+    std::unordered_set<std::string> undefinedProcedures;
+    std::unordered_set<std::string> undefinedVariables;
 
-    std::optional<Id> getVariableId(const std::string &name);
-    std::optional<Id> getProcedureId(const std::string &name);
+    Id getVariableId(const std::string &name, bool definition);
+    Id getProcedureId(const std::string &name, bool definition);
     std::optional<Number> toNumber(const std::string &string);
     void strip(std::string &string);
 
