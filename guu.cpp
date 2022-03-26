@@ -77,12 +77,16 @@ std::optional<Number> Program::toNumber(const std::string &string)
     return number;
 }
 
+bool Program::isEmptyChar(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n';
+}
+
 void Program::strip(std::string &string)
 {
     if (string.empty()) {
         return;
     }
-    auto isEmptyChar = [](char c) { return c == ' ' || c == '\t' || c == '\n'; };
     size_t begin;
     for (begin = 0; begin < string.size() && isEmptyChar(string[begin]); ++begin)
         ;
@@ -110,7 +114,16 @@ Program::Program(std::istream &in)
     std::string procedureName = "";
     auto isProcedureSet = [&procedureName]() { return !procedureName.empty(); };
 
-    auto makeValue = [this, assertSyntaxError](std::string stringValue) {
+    auto canBeVariableName = [this](const std::string &name) {
+        for (size_t i = 0; i < name.size(); ++i) {
+            if (isEmptyChar(name[i])) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    auto makeValue = [this, assertSyntaxError, canBeVariableName](std::string stringValue) {
         guu::Value value;
         if (stringValue.front() == '"' && stringValue.back() == '"') {
             value.value = stringValue.substr(1, stringValue.size() - 1);
@@ -119,7 +132,9 @@ Program::Program(std::istream &in)
             if (number.has_value()) {
                 value.value = number.value();
             } else {
-                // TODO: check if stringValue can be variable name
+                assertSyntaxError(canBeVariableName(stringValue),
+                                  "instruction `set': `" + stringValue
+                                          + "' can't be a variable name");
                 value.value = getVariableId(stringValue);
             }
         }

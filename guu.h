@@ -76,6 +76,7 @@ protected:
     Id getVariableId(const std::string &name, const bool definition);
     Id getProcedureId(const std::string &name, const bool definition);
     std::optional<Number> toNumber(const std::string &string);
+    bool isEmptyChar(char c);
     void strip(std::string &string);
 
     void setValue(const Id keyId, Value &value);
