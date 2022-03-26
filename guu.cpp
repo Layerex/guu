@@ -205,7 +205,6 @@ Program::Program(std::istream &in)
         throwSyntaxError(undefinedVariablesError);
     }
 
-    // TODO: when nodebug mode: remove symbols
     for (auto procedure : procedures) {
         procedure.instructions.shrink_to_fit();
     }
@@ -307,10 +306,12 @@ void Program::run(std::ostream &out, std::ostream &err, std::istream &in, const 
                 } else if (command == "o") {
                     break;
                 } else if (command == "trace") {
-                    for (Id i = 0; i < procedureStack.container().size(); ++i) {
+                    Id i;
+                    for (i = 0; i < procedureStack.container().size(); ++i) {
                         err << i << ") " << procedureNames[procedureStack.container()[i].id]
                             << '\n';
                     }
+                    err << i << ") " << procedureNames[currentInstruction.id] << '\n';
                     goto getCommand;
                 } else if (command == "var") {
                     for (Id i = 0; i < variables.size(); ++i) {
@@ -319,6 +320,11 @@ void Program::run(std::ostream &out, std::ostream &err, std::istream &in, const 
                             printValue(i, err);
                         }
                     }
+                    goto getCommand;
+                } else if (in.eof()) {
+                    goto end;
+                } else {
+                    err << "Unknown command.\n";
                     goto getCommand;
                 }
             }
