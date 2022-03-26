@@ -28,7 +28,7 @@ Id Program::getVariableId(const std::string &name, const bool definition = false
         if (definition) {
             undefinedVariables.erase(name);
         }
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range) {
         variableNames.push_back(name);
         id = variables.size();
         variables.emplace_back();
@@ -48,7 +48,7 @@ Id Program::getProcedureId(const std::string &name, const bool definition = fals
         if (definition) {
             undefinedProcedures.erase(name);
         }
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range) {
         procedureNames.push_back(name);
         id = procedures.size();
         procedures.emplace_back();
