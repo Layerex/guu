@@ -20,7 +20,7 @@ ValueType Value::type()
     return static_cast<ValueType>(value.index());
 }
 
-Id Program::getVariableId(const std::string &name, bool definition = false)
+Id Program::getVariableId(const std::string &name, const bool definition = false)
 {
     Id id;
     try {
@@ -40,7 +40,7 @@ Id Program::getVariableId(const std::string &name, bool definition = false)
     return id;
 }
 
-Id Program::getProcedureId(const std::string &name, bool definition = false)
+Id Program::getProcedureId(const std::string &name, const bool definition = false)
 {
     Id id;
     try {
@@ -215,7 +215,7 @@ Program::Program(std::istream &in)
     variableNames.shrink_to_fit();
 }
 
-void Program::setValue(const Id keyId, Value value)
+void Program::setValue(const Id keyId, Value &value)
 {
     switch (value.type()) {
     case ValueType::Empty:
@@ -223,14 +223,16 @@ void Program::setValue(const Id keyId, Value value)
     case ValueType::Number:
     case ValueType::String:
         variables[keyId] = value;
+        break;
     case ValueType::Variable:
         const Id valueId = std::get<Id>(value.value);
         if (variables[valueId].type() == ValueType::Empty) {
             throw std::runtime_error("instruction `set': variable `" + variableNames[valueId]
-                               + "' undefined");
+                                     + "' undefined");
         } else {
             variables[keyId] = variables[valueId];
         }
+        break;
     }
 }
 
@@ -255,36 +257,75 @@ void Program::printValue(const Id valueId, std::ostream &out)
 #undef valueToPrint
 }
 
-void Program::run(std::ostream &out)
+std::string Program::getDebugCommand(std::ostream &out, std::istream &in)
 {
-    std::cerr << "run" << std::endl;
-    std::stack<ProcedureFrame> procedureStack;
+    std::string command;
+    out << "> ";
+    in >> command;
+    return command;
+}
+
+void Program::run(std::ostream &out, std::ostream &err, std::istream &in, const bool debug = false,
+                  const bool log = false)
+{
+#define LOG(...)                                                                                   \
+    if (log)                                                                                       \
+    err << __VA_ARGS__ << '\n'
+
+    LOG("run");
+    stack<ProcedureFrame, std::vector<ProcedureFrame>> procedureStack;
     procedureStack.emplace(entryPoint);
     for (;;) {
         ProcedureFrame *currentProcedure = &procedureStack.top();
         while (procedures[currentProcedure->id].instructions.size()
                == currentProcedure->instruction) {
             procedureStack.pop();
-            std::cerr << "return" << std::endl;
+            LOG("return");
             if (procedureStack.empty()) {
                 goto end;
             } else {
                 currentProcedure = &procedureStack.top();
+                ++currentProcedure->instruction;
             }
         }
 #define currentInstruction                                                                         \
     procedures[currentProcedure->id].instructions[currentProcedure->instruction]
+        LOG("instruction " << currentProcedure->instruction + 1 << "/"
+                           << procedures[currentProcedure->id].instructions.size());
         switch (currentInstruction.type) {
         case InstructionType::Set:
-            std::cerr << "set" << std::endl;
-            setValue(currentInstruction.id, currentInstruction.arg);
+            LOG("set");
+            setValue(currentInstruction.id, const_cast<Value &>(currentInstruction.arg));
             break;
         case InstructionType::Call:
-            std::cerr << "call" << '\n';
+            LOG("call");
+            if (debug) {
+            getCommand:
+                std::string command = getDebugCommand(err, in);
+                if (command == "i") {
+                    // pass
+                } else if (command == "o") {
+                    break;
+                } else if (command == "trace") {
+                    for (Id i = 0; i < procedureStack.container().size(); ++i) {
+                        err << i << ") " << procedureNames[procedureStack.container()[i].id]
+                            << '\n';
+                    }
+                    goto getCommand;
+                } else if (command == "var") {
+                    for (Id i = 0; i < variables.size(); ++i) {
+                        if (variables[i].type() != ValueType::Empty) {
+                            err << variableNames[i] << "=";
+                            printValue(i, err);
+                        }
+                    }
+                    goto getCommand;
+                }
+            }
             procedureStack.emplace(currentInstruction.id);
             break;
         case InstructionType::Print:
-            std::cerr << "print" << '\n';
+            LOG("print");
             printValue(currentInstruction.id, out);
             break;
         }
@@ -292,6 +333,7 @@ void Program::run(std::ostream &out)
 #undef currentInstruction
     }
 end:
-    std::cerr << "end" << std::endl;
+    LOG("end");
+#undef LOG
 }
 }

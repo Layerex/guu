@@ -16,6 +16,15 @@ void error(T message);
 template<typename T>
 void assert(bool predicate, T message);
 
+template<class T, class Container>
+struct stack : public std::stack<T, Container>
+{
+    Container &container()
+    {
+        return this->c;
+    }
+};
+
 typedef size_t Id;
 typedef long long Number; // TODO: long numbers
 
@@ -64,16 +73,19 @@ protected:
     std::unordered_set<std::string> undefinedProcedures;
     std::unordered_set<std::string> undefinedVariables;
 
-    Id getVariableId(const std::string &name, bool definition);
-    Id getProcedureId(const std::string &name, bool definition);
+    Id getVariableId(const std::string &name, const bool definition);
+    Id getProcedureId(const std::string &name, const bool definition);
     std::optional<Number> toNumber(const std::string &string);
     void strip(std::string &string);
 
-    void setValue(const Id keyId, Value value);
+    void setValue(const Id keyId, Value &value);
     void printValue(const Id valueId, std::ostream &out);
+
+    std::string getDebugCommand(std::ostream &out, std::istream &in);
 
 public:
     Program(std::istream &in);
-    void run(std::ostream &out);
+    void run(std::ostream &out, std::ostream &err, std::istream &in, const bool debug,
+             const bool log);
 };
 }
