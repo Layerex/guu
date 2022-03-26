@@ -1,0 +1,13 @@
+sub main
+    call foo
+    set y z
+    call bar
+sub foo
+    set x y
+    print x
+    print y
+sub bar
+    set z y
+    print z
+sub comfy
+    set sdf y

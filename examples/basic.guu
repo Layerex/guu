@@ -1,0 +1,12 @@
+sub comfy
+    set x 8
+sub w
+    set z 10
+sub main
+    call comfy
+    print x
+    call w
+    call w
+    print z
+    set y 9
+    print y
