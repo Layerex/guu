@@ -19,10 +19,10 @@ void assert(bool predicate, T message);
 typedef size_t Id;
 typedef long long Number; // TODO: long numbers
 
-enum class ValueType { Number, String, Variable };
+enum class ValueType { Empty, Number, String, Variable };
 struct Value
 {
-    std::variant<Number, std::string, Id> value;
+    std::variant<std::monostate, Number, std::string, Id> value;
     ValueType type();
 };
 
@@ -69,7 +69,8 @@ protected:
     std::optional<Number> toNumber(const std::string &string);
     void strip(std::string &string);
 
-    void printValue(Value valueToPrint, std::ostream &out);
+    void setValue(const Id keyId, Value value);
+    void printValue(const Id valueId, std::ostream &out);
 
 public:
     Program(std::istream &in);

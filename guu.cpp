@@ -215,9 +215,33 @@ Program::Program(std::istream &in)
     variableNames.shrink_to_fit();
 }
 
-void Program::printValue(Value valueToPrint, std::ostream &out)
+void Program::setValue(const Id keyId, Value value)
 {
+    switch (value.type()) {
+    case ValueType::Empty:
+        break;
+    case ValueType::Number:
+    case ValueType::String:
+        variables[keyId] = value;
+    case ValueType::Variable:
+        const Id valueId = std::get<Id>(value.value);
+        if (variables[valueId].type() == ValueType::Empty) {
+            throw std::runtime_error("instruction `set': variable `" + variableNames[valueId]
+                               + "' undefined");
+        } else {
+            variables[keyId] = variables[valueId];
+        }
+    }
+}
+
+void Program::printValue(const Id valueId, std::ostream &out)
+{
+#define valueToPrint variables[valueId]
     switch (valueToPrint.type()) {
+    case ValueType::Empty:
+        throw std::runtime_error("instruction `print': variable `" + variableNames[valueId]
+                                 + "' undefined");
+        break;
     case ValueType::Number:
         out << std::get<Number>(valueToPrint.value) << '\n';
         break;
@@ -225,9 +249,10 @@ void Program::printValue(Value valueToPrint, std::ostream &out)
         out << std::get<std::string>(valueToPrint.value) << '\n';
         break;
     case ValueType::Variable:
-        printValue(variables[std::get<Id>(valueToPrint.value)], out);
+        printValue(std::get<Id>(valueToPrint.value), out);
         break;
     }
+#undef valueToPrint
 }
 
 void Program::run(std::ostream &out)
@@ -252,12 +277,7 @@ void Program::run(std::ostream &out)
         switch (currentInstruction.type) {
         case InstructionType::Set:
             std::cerr << "set" << std::endl;
-            if (static_cast<Value>(currentInstruction.arg).type() == ValueType::Variable) {
-                variables[currentInstruction.id] =
-                        variables[std::get<Id>(currentInstruction.arg.value)];
-            } else {
-                variables[currentInstruction.id] = currentInstruction.arg;
-            }
+            setValue(currentInstruction.id, currentInstruction.arg);
             break;
         case InstructionType::Call:
             std::cerr << "call" << '\n';
@@ -265,7 +285,7 @@ void Program::run(std::ostream &out)
             break;
         case InstructionType::Print:
             std::cerr << "print" << '\n';
-            printValue(variables[currentInstruction.id], out);
+            printValue(currentInstruction.id, out);
             break;
         }
         ++currentProcedure->instruction;
