@@ -40,11 +40,11 @@ int main(int argc, char *argv[])
         try {
             program.run(std::cout, std::cerr, std::cin, debug, log);
         } catch (std::runtime_error &e) {
-            std::cerr << "Runtime error: " << e.what() << '\n';
+            std::cerr << "Runtime error: " << e.what() << ".\n";
             return 1;
         }
     } catch (std::runtime_error &e) {
-        std::cerr << "Compilation error: " << e.what() << '\n';
+        std::cerr << "Compilation error: " << e.what() << ".\n";
         return 1;
     }
 
