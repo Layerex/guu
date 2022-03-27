@@ -73,20 +73,20 @@ protected:
     std::unordered_set<std::string> undefinedProcedures;
     std::unordered_set<std::string> undefinedVariables;
 
-    Id getVariableId(const std::string &name, const bool definition);
-    Id getProcedureId(const std::string &name, const bool definition);
+    Id getVariableId(const std::string &name, bool definition);
+    Id getProcedureId(const std::string &name, bool definition);
     std::optional<Number> toNumber(const std::string &string);
     bool isEmptyChar(char c);
     void strip(std::string &string);
 
-    void setValue(const Id keyId, Value &value);
-    void printValue(const Id valueId, std::ostream &out);
+    void setValue(Id keyId, Value &value);
+    void printValue(Id valueId, std::ostream &out);
 
     std::string getDebugCommand(std::ostream &out, std::istream &in);
 
 public:
     Program(std::istream &in);
-    void run(std::ostream &out, std::ostream &err, std::istream &in, const bool debug,
-             const bool log);
+    void run(std::ostream &out, std::ostream &err, std::istream &in, bool debug,
+             bool log);
 };
 }
