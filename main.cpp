@@ -34,6 +34,10 @@ int main(int argc, char *argv[])
     }
 
     std::ifstream fileStream(argv[1]);
+    if (!fileStream.is_open()) {
+        std::cerr << "Can't open file `" << argv[1] << "'.\n";
+        return 1;
+    }
 
     try {
         guu::Program program(fileStream);
