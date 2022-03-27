@@ -282,79 +282,90 @@ std::string Program::getDebugCommand(std::ostream &out, std::istream &in)
 void Program::run(std::ostream &out, std::ostream &err, std::istream &in, const bool debug = false,
                   const bool log = false)
 {
-#define LOG(...)                                                                                   \
-    if (log)                                                                                       \
-    err << __VA_ARGS__ << '\n'
 
-    LOG("run");
-    stack<ProcedureFrame, std::vector<ProcedureFrame>> procedureStack;
-    procedureStack.emplace(entryPoint);
-    for (;;) {
-        ProcedureFrame *currentProcedure = &procedureStack.top();
-        while (procedures[currentProcedure->id].instructions.size()
-               == currentProcedure->instruction) {
-            procedureStack.pop();
-            LOG("return");
-            if (procedureStack.empty()) {
-                goto end;
-            } else {
-                currentProcedure = &procedureStack.top();
-                ++currentProcedure->instruction;
-            }
-        }
-#define currentInstruction                                                                         \
-    procedures[currentProcedure->id].instructions[currentProcedure->instruction]
-        LOG("instruction " << currentProcedure->instruction + 1 << "/"
-                           << procedures[currentProcedure->id].instructions.size());
-        switch (currentInstruction.type) {
-        case InstructionType::Set:
-            LOG("set");
-            setValue(currentInstruction.id, const_cast<Value &>(currentInstruction.arg));
-            break;
-        case InstructionType::Call:
-            LOG("call");
-            if (debug) {
-            getCommand:
-                std::string command = getDebugCommand(err, in);
-                if (command == "i") {
-                    // pass
-                } else if (command == "o") {
-                    break;
-                } else if (command == "trace") {
-                    Id i;
-                    for (i = 0; i < procedureStack.container().size(); ++i) {
-                        err << i << ") " << procedureNames[procedureStack.container()[i].id]
-                            << '\n';
-                    }
-                    err << i << ") " << procedureNames[currentInstruction.id] << '\n';
-                    goto getCommand;
-                } else if (command == "var") {
-                    for (Id i = 0; i < variables.size(); ++i) {
-                        if (variables[i].type() != ValueType::Empty) {
-                            err << variableNames[i] << "=";
-                            printValue(i, err);
-                        }
-                    }
-                    goto getCommand;
-                } else if (in.eof()) {
+    auto doRun = [this, &out, &err, &in]<bool debug, bool log>() {
+#define LOG(...)                                                                                   \
+    if constexpr (log)                                                                             \
+    err << __VA_ARGS__ << '\n'
+        LOG("run");
+        stack<ProcedureFrame, std::vector<ProcedureFrame>> procedureStack;
+        procedureStack.emplace(entryPoint);
+        for (;;) {
+            ProcedureFrame *currentProcedure = &procedureStack.top();
+            while (procedures[currentProcedure->id].instructions.size()
+                   == currentProcedure->instruction) {
+                procedureStack.pop();
+                LOG("return");
+                if (procedureStack.empty()) {
                     goto end;
                 } else {
-                    err << "Unknown command.\n";
-                    goto getCommand;
+                    currentProcedure = &procedureStack.top();
+                    ++currentProcedure->instruction;
                 }
             }
-            procedureStack.emplace(currentInstruction.id);
-            break;
-        case InstructionType::Print:
-            LOG("print");
-            printValue(currentInstruction.id, out);
-            break;
-        }
-        ++currentProcedure->instruction;
+#define currentInstruction                                                                         \
+    procedures[currentProcedure->id].instructions[currentProcedure->instruction]
+            LOG("instruction " << currentProcedure->instruction + 1 << "/"
+                               << procedures[currentProcedure->id].instructions.size());
+            switch (currentInstruction.type) {
+            case InstructionType::Set:
+                LOG("set");
+                setValue(currentInstruction.id, const_cast<Value &>(currentInstruction.arg));
+                break;
+            case InstructionType::Call:
+                LOG("call");
+                if constexpr (debug) {
+                getCommand:
+                    std::string command = getDebugCommand(err, in);
+                    if (command == "i") {
+                        // pass
+                    } else if (command == "o") {
+                        break;
+                    } else if (command == "trace") {
+                        Id i;
+                        for (i = 0; i < procedureStack.container().size(); ++i) {
+                            err << i << ") " << procedureNames[procedureStack.container()[i].id]
+                                << '\n';
+                        }
+                        err << i << ") " << procedureNames[currentInstruction.id] << '\n';
+                        goto getCommand;
+                    } else if (command == "var") {
+                        for (Id i = 0; i < variables.size(); ++i) {
+                            if (variables[i].type() != ValueType::Empty) {
+                                err << variableNames[i] << "=";
+                                printValue(i, err);
+                            }
+                        }
+                        goto getCommand;
+                    } else if (in.eof()) {
+                        goto end;
+                    } else {
+                        err << "Unknown command.\n";
+                        goto getCommand;
+                    }
+                }
+                procedureStack.emplace(currentInstruction.id);
+                break;
+            case InstructionType::Print:
+                LOG("print");
+                printValue(currentInstruction.id, out);
+                break;
+            }
+            ++currentProcedure->instruction;
 #undef currentInstruction
-    }
-end:
-    LOG("end");
+        }
+    end:
+        LOG("end");
 #undef LOG
+    };
+    if (debug && log) {
+        doRun.operator()<true, true>();
+    } else if (debug) {
+        doRun.operator()<true, false>();
+    } else if (log) {
+        doRun.operator()<false, true>();
+    } else {
+        doRun.operator()<false, false>();
+    }
 }
 }
